@@ -1,4 +1,4 @@
-name: Gemini Model Test with Google Auth
+name: Gemini Model Test (AI Studio)
 
 on:
   workflow_dispatch:
@@ -10,16 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      LITELLM_MODEL: ${{ vars.LITELLM_MODEL }}
-      LITELLM_FALLBACK_MODELS: ${{ vars.LITELLM_FALLBACK_MODELS }}
-      LLM_CHANNELS: ${{ vars.LLM_CHANNELS }}
-      AIHUBMIX_KEY: ${{ secrets.AIHUBMIX_KEY }}
-      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      # 核心配置：仅需 GEMINI_API_KEY，无需 Google Cloud 认证
+      LITELLM_MODEL: "gemini-1.5-pro"  # 自动指向最新版，无需带版本后缀
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
-      GOOGLE_CLOUD_PROJECT: "project-8f2455d4-d55b-46de-9d1"
-      GOOGLE_CLOUD_REGION: "us-central1"
 
     steps:
       - name: Checkout Code
@@ -31,46 +24,30 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Dependencies (含 Google SDK)
+      - name: Install LiteLLM (仅需基础依赖，无需 Google SDK)
         run: |
           python -m pip install --upgrade pip
-          pip install litellm openai python-dotenv litellm[google]
+          pip install litellm  # 仅需核心库，无需额外 Google 依赖
 
-      - name: Configure Google Credentials
-        run: |
-          echo "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > /tmp/google_credentials.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/google_credentials.json" >> $GITHUB_ENV
-
-      - name: Verify Configuration
-        run: |
-          echo "==================== 配置验证 ===================="
-          echo "默认模型(LITELLM_MODEL): $LITELLM_MODEL"
-          echo "降级模型(LITELLM_FALLBACK_MODELS): $LITELLM_FALLBACK_MODELS"
-          echo "调用渠道(LLM_CHANNELS): $LLM_CHANNELS"
-          echo "=================================================="
-
-      - name: Test AI Model Completion
+      - name: Test Gemini Model (AI Studio 方式)
         run: |
           python - <<EOF
           import os
           from litellm import completion
           from litellm.exceptions import APIError
 
-          # 初始化 Gemini 配置
-          os.environ["GEMINI_PROJECT"] = "$GOOGLE_CLOUD_PROJECT"
-          os.environ["GEMINI_REGION"] = "$GOOGLE_CLOUD_REGION"
-
           # 测试消息
           test_messages = [{"role": "user", "content": "你好，请回复一句‘Gemini 测试成功’以及你的模型版本"}]
 
           try:
-              # 核心修改：强制写死模型名为 gemini-1.5-pro-002
+              # 直接调用 Gemini (AI Studio 方式，无需 Vertex AI 认证)
               response = completion(
-                  model="gemini-1.5-pro-002",  # 强制使用最新版，不再读取变量
+                  model="gemini-1.5-pro",  # 简写即可，自动指向最新版
                   messages=test_messages,
-                  temperature=0.5
+                  temperature=0.5,
+                  api_key=os.environ["GEMINI_API_KEY"]  # 显式传入 API Key
               )
-              print("\n✅ 🎉 调用成功！输出结果如下：")
+              print("\n✅ 🎉 Gemini 调用成功！输出结果如下：")
               print(response.choices[0].message.content)
               print(f"\n模型信息: {response.model}")
           except APIError as e:
