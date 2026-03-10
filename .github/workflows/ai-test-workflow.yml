@@ -1,0 +1,87 @@
+# 工作流名称（在 Actions 页面显示）
+name: AI Model Test Workflow
+
+# 触发条件：手动触发 + 代码推送到 main 分支时触发
+on:
+  workflow_dispatch:  # 手动触发（核心，方便测试）
+  push:
+    branches: [ main ]
+
+# 定义要执行的任务
+jobs:
+  test-ai-models:
+    # 运行环境：Ubuntu 最新版
+    runs-on: ubuntu-latest
+    # 超时时间：30 分钟
+    timeout-minutes: 30
+
+    # 注入配置（Secrets + Variables）
+    env:
+      # LiteLLM 模型配置（从 Variables 读取）
+      LITELLM_MODEL: ${{ vars.LITELLM_MODEL }}
+      LITELLM_FALLBACK_MODELS: ${{ vars.LITELLM_FALLBACK_MODELS }}
+      LLM_CHANNELS: ${{ vars.LLM_CHANNELS }}
+      # AI 密钥（从 Secrets 读取）
+      AIHUBMIX_KEY: ${{ secrets.AIHUBMIX_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    steps:
+      # 步骤 1：拉取仓库代码
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      # 步骤 2：配置 Python 环境（LiteLLM 基于 Python）
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'  # 缓存依赖，加速运行
+
+      # 步骤 3：安装 LiteLLM 和依赖
+      - name: Install LiteLLM and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install litellm openai python-dotenv
+
+      # 步骤 4：打印配置，验证是否正确读取
+      - name: Print configuration (验证配置)
+        run: |
+          echo "=== 配置信息 ==="
+          echo "默认模型: $LITELLM_MODEL"
+          echo "降级模型: $LITELLM_FALLBACK_MODELS"
+          echo "调用渠道: $LLM_CHANNELS"
+          echo "=== 配置验证完成 ==="
+
+      # 步骤 5：测试 AI 模型调用（核心步骤）
+      - name: Test AI model completion
+        run: |
+          python - <<EOF
+          import os
+          from litellm import completion, exceptions
+
+          # 获取配置
+          model = os.getenv("LITELLM_MODEL")
+          fallback_models = os.getenv("LITELLM_FALLBACK_MODELS").split(",") if os.getenv("LITELLM_FALLBACK_MODELS") else []
+
+          # 测试消息
+          messages = [{"role": "user", "content": "你好，请回复一句测试成功的提示语"}]
+
+          try:
+              # 调用主模型
+              print(f"正在调用主模型: {model}")
+              response = completion(
+                  model=model,
+                  messages=messages,
+                  fallback_models=fallback_models,  # 自动降级
+                  temperature=0.7
+              )
+              print(f"✅ 调用成功！回复: {response.choices[0].message.content}")
+          except exceptions.LiteLLMError as e:
+              print(f"❌ 调用失败: {str(e)}")
+              exit(1)
+          except Exception as e:
+              print(f"❌ 未知错误: {str(e)}")
+              exit(1)
+          EOF
