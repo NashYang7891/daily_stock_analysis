@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 30
     env:
       # 核心配置：仅需 GEMINI_API_KEY，无需 Google Cloud 认证
-      LITELLM_MODEL: "gemini/gemini-1.5-pro"  # gemini/ 前缀强制走 AI Studio，否则会走 Vertex AI 需 GCP SDK
+      LITELLM_MODEL: "gemini/gemini-2.5-flash"  # 1.5-pro 已弃用，使用 2.5-flash（与项目默认一致）
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
     steps:
@@ -42,7 +42,7 @@ jobs:
           try:
               # 直接调用 Gemini (AI Studio 方式，无需 Vertex AI 认证)
               response = completion(
-                  model="gemini/gemini-1.5-pro",  # gemini/ 前缀 = AI Studio，无前缀会走 Vertex AI
+                  model="gemini/gemini-2.5-flash",  # 1.5-pro 已弃用，2.5-flash 为当前稳定模型
                   messages=test_messages,
                   temperature=0.5,
                   api_key=os.environ["GEMINI_API_KEY"]  # 显式传入 API Key
